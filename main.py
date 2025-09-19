@@ -1,9 +1,8 @@
-# --- Imports and Setup ---
 import os
 import json
 import io
 from dotenv import load_dotenv
-from typing import Dict
+from typing import Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,20 +58,20 @@ knowledge_base = {
 }
 
 # The function to generate the Excel file
-def generate_forecast(params: dict) -> io.BytesIO:
+def generate_forecast(params: Dict[str, Any]) -> io.BytesIO:
     months = params.get("months", 6)
     start = params.get("start", "Jan 2025")
 
     kb = knowledge_base.copy()
-    if "marketing_spend" in params:
+    if "marketing_spend" in params and params["marketing_spend"] is not None:
         kb["smb_customer"]["marketing_spend"] = params["marketing_spend"]
-    if "cac" in params:
+    if "cac" in params and params["cac"] is not None:
         kb["smb_customer"]["cac"] = params["cac"]
-    if "conversion_rate" in params:
+    if "conversion_rate" in params and params["conversion_rate"] is not None:
         kb["smb_customer"]["conversion_rate"] = params["conversion_rate"]
-    if "revenue_per_customer" in params:
+    if "revenue_per_customer" in params and params["revenue_per_customer"] is not None:
         kb["smb_customer"]["revenue_per_customer"] = params["revenue_per_customer"]
-    if "initial_salespeople" in params:
+    if "initial_salespeople" in params and params["initial_salespeople"] is not None:
         kb["sales_team"]["initial_salespeople"] = params["initial_salespeople"]
 
     wb = openpyxl.Workbook()
@@ -205,7 +204,8 @@ async def forecast_from_prompt(data: PromptInput):
             response_format={"type": "json_object"}
         )
 
-        params = json.loads(response.choices[0].message.content)
+        llm_response_content = response.choices[0].message.content
+        params = json.loads(llm_response_content)
         excel_file = generate_forecast(params)
 
         return StreamingResponse(
