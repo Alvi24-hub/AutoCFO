@@ -1,28 +1,46 @@
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-import io
-import openpyxl
+# --- Imports and Setup ---
 import os
+import json
+import io
 from dotenv import load_dotenv
 from typing import Dict
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from openai import OpenAI
-import json
+from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, numbers
 
+# Load environment variables from .env file
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# Get the OpenAI API key from the environment
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# Check if the API key is set
+if not OPENAI_API_KEY:
+    raise HTTPException(status_code=500, detail="OpenAI API key not found.")
+
+# Initialize the OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# Initialize FastAPI app
 app = FastAPI()
+
+# Add CORS middleware to allow requests from your frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"], # Allows all methods (GET, POST, etc.)
-    allow_headers=["*"], # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+
+# --- Knowledge Base and Utility Functions ---
+
+# Define the knowledge base with financial assumptions
 knowledge_base = {
     "large_customer": {
         "revenue_per_customer": 16500,
@@ -40,9 +58,7 @@ knowledge_base = {
     }
 }
 
-class PromptInput(BaseModel):
-    prompt: str
-
+# The function to generate the Excel file
 def generate_forecast(params: dict) -> io.BytesIO:
     months = params.get("months", 6)
     start = params.get("start", "Jan 2025")
@@ -161,6 +177,12 @@ def generate_forecast(params: dict) -> io.BytesIO:
     output.seek(0)
     return output
 
+
+# --- API Endpoints ---
+
+class PromptInput(BaseModel):
+    prompt: str
+
 @app.post("/forecast_from_prompt")
 async def forecast_from_prompt(data: PromptInput):
     try:
@@ -193,4 +215,5 @@ async def forecast_from_prompt(data: PromptInput):
         )
 
     except Exception as e:
-        return {"error": str(e)}
+        # Return a JSON error response that the frontend can handle
+        raise HTTPException(status_code=500, detail=str(e))
